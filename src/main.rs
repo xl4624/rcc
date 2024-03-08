@@ -4,8 +4,11 @@ mod parser;
 
 use std::{env::args, error::Error, fs};
 
-use lexer::{lex, Token};
-use parser::{parse, Program};
+use crate::{
+    codegen::generate_assembly,
+    lexer::{lex, Token},
+    parser::{parse, Program},
+};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = args().collect();
@@ -23,7 +26,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let root: Program = parse(&tokens)?;
     println!("Root: {:?}", root);
 
-    let assembly = codegen::generate_assembly(&root)?;
+    let assembly = generate_assembly(&root)?;
     println!("{}", assembly);
 
     let output_filename = format!("{}.s", filename.trim_end_matches(".c"));
