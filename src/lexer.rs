@@ -12,6 +12,11 @@ pub enum Token {
     LParen,
     RParen,
     Semi,
+    Equal,
+
+    // Operators
+    Plus,
+    Minus,
 
     // Keywords
     Int,
@@ -31,6 +36,9 @@ impl Display for Token {
             Token::LParen => write!(f, "l_paren '('"),
             Token::RParen => write!(f, "r_paren ')'"),
             Token::Semi => write!(f, "semi ';'"),
+            Token::Equal => write!(f, "equal '='"),
+            Token::Plus => write!(f, "plus '+'"),
+            Token::Minus => write!(f, "minus '-'"),
             Token::Int => write!(f, "int 'int'"),
             Token::Return => write!(f, "return 'return'"),
             Token::Ident(ident) => write!(f, "identifier '{}'", ident),
@@ -50,6 +58,9 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
             '(' => Token::LParen,
             ')' => Token::RParen,
             ';' => Token::Semi,
+            '=' => Token::Equal,
+            '+' => Token::Plus,
+            '-' => Token::Minus,
             _ if c.is_whitespace() => continue,
             _ if c.is_alphabetic() => lex_word(&mut chars, c)?,
             _ if c.is_numeric() => lex_number(&mut chars, c)?,
