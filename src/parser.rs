@@ -1,205 +1,70 @@
-use std::{iter::Peekable, slice::Iter};
+use std::error::Error;
 
-use crate::lexer::Token;
+use crate::token::{Token, TokenStream, Type};
 
-#[derive(Debug)]
-pub struct Program {
-    pub functions: Vec<FunctionDefinition>,
+use super::ast::{Expression, Function, Program, Statement};
+
+pub fn parse(tokens: &[Token]) -> Result<Program, Box<dyn Error>> {
+    let mut tokens = TokenStream::new(tokens);
+    let function = parse_function(&mut tokens)?;
+    Ok(Program { function })
 }
 
-#[derive(Debug)]
-pub struct FunctionDefinition {
-    pub ty: String,
-    pub name: String,
-    pub params: Vec<String>,
-    pub body: Vec<Statement>,
+fn parse_function(tokens: &mut TokenStream) -> Result<Function, Box<dyn Error>> {
+    let ty = parse_type(tokens)?;
+    let name = tokens.expect_identifier()?;
+    tokens.expect(Token::LParen)?;
+    tokens.expect(Token::RParen)?;
+    tokens.expect(Token::LBrace)?;
+    let body = parse_compound_statement(tokens)?;
+    tokens.expect(Token::RBrace)?;
+    Ok(Function { ty, name, body })
 }
 
-#[derive(Debug)]
-pub enum Statement {
-    Return(Expression),
-}
-
-#[derive(Debug)]
-pub enum Expression {
-    Constant(u32),
-    UnaryOp { op: UnaryOperator, expr: Box<Expression> },
-    BinaryOp { op: BinaryOperator, left: Box<Expression>, right: Box<Expression> },
-}
-
-#[derive(Debug)]
-pub enum UnaryOperator {
-    Minus,
-}
-
-#[derive(Debug)]
-pub enum BinaryOperator {
-    Add,
-    Subtract,
-}
-
-pub fn parse(tokens: &Vec<Token>) -> Result<Program, String> {
-    let mut tokens = tokens.iter().peekable();
-    let program = parse_program(&mut tokens)?;
-
-    Ok(program)
-}
-
-fn parse_program(tokens: &mut Peekable<Iter<Token>>) -> Result<Program, String> {
-    let mut functions = Vec::new();
-
-    while tokens.peek().is_some() {
-        let function = parse_definition(tokens)?;
-        functions.push(function);
-    }
-
-    Ok(Program { functions })
-}
-
-fn parse_definition(tokens: &mut Peekable<Iter<Token>>) -> Result<FunctionDefinition, String> {
-    let ty = match tokens.next() {
-        Some(Token::Int) => "int".to_string(),
-        _ => return Err("PARSER ERROR: Expected 'int' keyword".into()),
-    };
-
-    let name = match tokens.next() {
-        Some(Token::Ident(name)) => name.clone(),
-        _ => return Err("PARSER ERROR: Expected an identifier".into()),
-    };
-
+fn parse_type(tokens: &mut TokenStream) -> Result<Type, Box<dyn Error>> {
     match tokens.next() {
-        Some(Token::LParen) => {
-            let params = parse_params(tokens)?;
-            match tokens.next() {
-                Some(Token::LBrace) => {
-                    let body = parse_compound_statement(tokens)?;
-                    Ok(FunctionDefinition { ty, name, params, body })
-                }
-                _ => Err("PARSER ERROR: Expected an opening brace".into()),
-            }
-        }
-        Some(Token::Equal) => {
-            Err("PARSER ERROR: Function definitions are not yet supported".into())
-            // match tokens.peek() {
-            //     Some(Token::Semi) => Err("PARSER ERROR: Variable declarations are not yet supported".into()),
-            //     _ => {
-            //         let expression = parse_expression(tokens)?;
-            //         match tokens.next() {
-            //             Some(Token::Semi) => {
-            //                 Ok(Definition::Variable(VariableDefinition { ty, name, value: expression }))
-            //             }
-            //             _ => Err("PARSER ERROR: Expected a semicolon".into()),
-            //         }
-            //     }
-            // }
-        }
-        _ => Err("PARSER ERROR: Expected an opening parenthesis".into()),
+        Some(Token::Type(ty)) => Ok(ty.clone()),
+        Some(token) => Err(format!("Expected int, found {:?}", token).into()),
+        None => Err("Expected int, found EOF".into()),
     }
 }
 
-fn parse_params(tokens: &mut Peekable<Iter<Token>>) -> Result<Vec<String>, String> {
-    #[allow(unused_mut)]
-    let mut params = Vec::new();
-
-    while let Some(&next_token) = tokens.peek() {
-        match next_token {
-            Token::RParen => {
-                tokens.next();
-                return Ok(params);
-            }
-            // Token::Ident(param_name) => {
-            //     tokens.next();
-            //     params.push(param_name.clone());
-            // }
-            _ => return Err("PARSER ERROR: Expected a comma or closing parenthesis".into()),
-        }
-    }
-
-    Err("PARSER ERROR: Expected a closing parenthesis".into())
-}
-
-fn parse_compound_statement(tokens: &mut Peekable<Iter<Token>>) -> Result<Vec<Statement>, String> {
+fn parse_compound_statement(tokens: &mut TokenStream) -> Result<Vec<Statement>, Box<dyn Error>> {
     let mut statements = Vec::new();
-
-    while let Some(&next_token) = tokens.peek() {
-        match next_token {
-            Token::RBrace => {
-                tokens.next();
-                return Ok(statements);
-            }
-            _ => {
-                let statement = parse_statement(tokens)?;
-                statements.push(statement);
-            }
-        }
-    }
-
-    Err("PARSER ERROR: Expected a closing brace".into())
-}
-
-fn parse_statement(tokens: &mut Peekable<Iter<Token>>) -> Result<Statement, String> {
-    match tokens.peek() {
-        Some(Token::Return) => {
-            tokens.next();
-            match tokens.peek() {
-                Some(Token::Semi) => {
-                    tokens.next();
-                    Ok(Statement::Return(Expression::Constant(0)))
-                }
-                _ => {
-                    let expression = parse_expression(tokens)?;
-                    match tokens.next() {
-                        Some(Token::Semi) => Ok(Statement::Return(expression)),
-                        _ => Err("PARSER ERROR: Expected a semicolon".into()),
-                    }
-                }
-            }
-        }
-        // Some(Token::Break) => match tokens.next() {
-        //     Some(Token::Semi) => Ok(Statement::Break),
-        //     _ => Err("PARSER ERROR: Expected a semicolon".into()),
-        // },
-        _ => Err("PARSER ERROR: Expected 'return' keyword".into()),
-    }
-}
-
-fn parse_expression(tokens: &mut Peekable<Iter<Token>>) -> Result<Expression, String> {
-    let mut expr = match tokens.peek() {
-        Some(Token::Minus) => {
-            tokens.next();
-            let expr = parse_expression(tokens)?;
-            Expression::UnaryOp { op: UnaryOperator::Minus, expr: Box::new(expr) }
-        }
-        Some(Token::IntLit(value)) => {
-            tokens.next();
-            Expression::Constant(*value)
-        }
-        _ => return Err("PARSER ERROR: Expected a unary operator or a constant".into()),
-    };
-
     loop {
         match tokens.peek() {
-            Some(Token::Plus) => {
-                tokens.next();
-                let right = parse_expression(tokens)?;
-                expr = Expression::BinaryOp {
-                    op: BinaryOperator::Add,
-                    left: Box::new(expr),
-                    right: Box::new(right),
-                };
-            }
-            Some(Token::Minus) => {
-                tokens.next();
-                let right = parse_expression(tokens)?;
-                expr = Expression::BinaryOp {
-                    op: BinaryOperator::Subtract,
-                    left: Box::new(expr),
-                    right: Box::new(right),
-                };
-            }
-            _ => break,
+            Some(Token::RBrace) => break,
+            Some(Token::Return) => statements.push(parse_statement(tokens)?),
+            _ => return Err("Not implemented".into()),
         }
     }
+    Ok(statements)
+}
 
-    Ok(expr)
+fn parse_statement(tokens: &mut TokenStream) -> Result<Statement, Box<dyn Error>> {
+    match tokens.peek() {
+        Some(&Token::Return) => parse_return_statement(tokens),
+        _ => Err("Expected return statement".into()),
+    }
+}
+
+fn parse_return_statement(tokens: &mut TokenStream) -> Result<Statement, Box<dyn Error>> {
+    tokens.expect(Token::Return)?;
+    let expression = parse_expression(tokens)?;
+    if expression.is_some() {
+        tokens.expect(Token::Semi)?;
+    }
+    match expression {
+        Some(expression) => Ok(Statement::Return(Some(expression))),
+        None => Ok(Statement::Return(None)),
+    }
+}
+
+fn parse_expression(tokens: &mut TokenStream) -> Result<Option<Expression>, Box<dyn Error>> {
+    match tokens.next() {
+        Some(Token::IntLit(n)) => Ok(Some(Expression::IntLit(*n))),
+        Some(Token::Semi) => Ok(None),
+        Some(token) => Err(format!("Expected expression, found {:?}", token).into()),
+        None => Err("Expected expression, found EOF".into()),
+    }
 }
