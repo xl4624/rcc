@@ -31,7 +31,7 @@ pub enum Type {
     Void,
 }
 
-pub fn lex(contents: String) -> Result<Vec<Token>> {
+pub fn lex(contents: &str) -> Result<Vec<Token>> {
     let mut tokens = Vec::new();
     let mut chars = contents.chars().peekable();
     let keywords = keyword_token_map();

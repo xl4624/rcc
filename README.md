@@ -5,7 +5,9 @@
 Make sure you have Rust installed.
 
 ```bash
-cargo run test.c
+cargo run test.c # generates test.s
+gcc test.s -o test.o
+./test.o # echo $? to see the return value
 ```
 
 ## C Language Features

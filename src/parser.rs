@@ -74,6 +74,7 @@ impl<'a> Parser<'a> {
             statements.push(match self.token_stream.peek() {
                 Some(&Token::RBrace) => break,
                 Some(&Token::Return) => self.parse_return_statement()?,
+                None => return Err(anyhow!("Expected statement or '}}', found EOF")),
                 _ => return Err(anyhow!("Not implemented yet")),
             })
         }
@@ -110,7 +111,7 @@ impl<'a> Parser<'a> {
     }
 }
 
-pub struct TokenStream<'a> {
+struct TokenStream<'a> {
     tokens: Peekable<Iter<'a, Token>>,
 }
 
