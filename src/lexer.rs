@@ -1,8 +1,37 @@
-use std::{collections::HashMap, error::Error, iter::Peekable, str::Chars};
+use std::{collections::HashMap, iter::Peekable, str::Chars};
 
-use crate::token::{Token, Type};
+use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
 
-pub fn lex(contents: String) -> Result<Vec<Token>, Box<dyn Error>> {
+// https://en.wikipedia.org/wiki/Lexical_analysis
+#[derive(Debug, Clone, PartialEq)]
+pub enum Token {
+    Identifier(String),
+
+    // Keyword
+    Return,
+    Type(Type),
+
+    // Separators/Punctuators
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    Semi,
+
+    // Operators
+
+    // Literals
+    IntLit(u64),
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum Type {
+    Int,
+    Void,
+}
+
+pub fn lex(contents: String) -> Result<Vec<Token>> {
     let mut tokens = Vec::new();
     let mut chars = contents.chars().peekable();
     let keywords = keyword_token_map();
@@ -15,9 +44,9 @@ pub fn lex(contents: String) -> Result<Vec<Token>, Box<dyn Error>> {
             '}' => Token::RBrace,
             ';' => Token::Semi,
             _ if c.is_whitespace() => continue,
-            _ if c.is_ascii_alphabetic() => lex_identifier_or_keyword(&mut chars, c, &keywords)?,
+            _ if c.is_ascii_alphabetic() => lex_identifier_or_keyword(&mut chars, c, &keywords),
             _ if c.is_numeric() => lex_number(&mut chars, c),
-            _ => return Err(format!("Unexpected character: {}", c).into()),
+            _ => return Err(anyhow!("Unexpected character: {:?}", c)),
         });
     }
 
@@ -28,7 +57,7 @@ fn lex_identifier_or_keyword(
     chars: &mut Peekable<Chars>,
     c: char,
     keywords: &HashMap<String, Token>,
-) -> Result<Token, Box<dyn Error>> {
+) -> Token {
     let mut word = c.to_string();
 
     while let Some(&next_c) = chars.peek() {
@@ -40,8 +69,8 @@ fn lex_identifier_or_keyword(
     }
 
     match keywords.get(&word) {
-        Some(token) => Ok(token.clone()),
-        None => Ok(Token::Identifier(word)),
+        Some(token) => token.clone(),
+        None => Token::Identifier(word),
     }
 }
 

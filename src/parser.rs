@@ -1,70 +1,145 @@
-use std::error::Error;
+use std::{iter::Peekable, slice::Iter};
 
-use crate::token::{Token, TokenStream, Type};
+use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
 
-use super::ast::{Expression, Function, Program, Statement};
+use crate::lexer::{Token, Type};
 
-pub fn parse(tokens: &[Token]) -> Result<Program, Box<dyn Error>> {
-    let mut tokens = TokenStream::new(tokens);
-    let function = parse_function(&mut tokens)?;
-    Ok(Program { function })
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Program {
+    pub functions: Vec<Function>,
 }
 
-fn parse_function(tokens: &mut TokenStream) -> Result<Function, Box<dyn Error>> {
-    let return_type = parse_type(tokens)?;
-    let name = tokens.expect_identifier()?;
-    tokens.expect(Token::LParen)?;
-    tokens.expect(Token::RParen)?;
-    tokens.expect(Token::LBrace)?;
-    let body = parse_compound_statement(tokens)?;
-    tokens.expect(Token::RBrace)?;
-    Ok(Function { return_type, name, body })
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Function {
+    pub return_type: Type,
+    pub name: String,
+    pub body: Vec<Statement>,
 }
 
-fn parse_type(tokens: &mut TokenStream) -> Result<Type, Box<dyn Error>> {
-    match tokens.next() {
-        Some(Token::Type(typ)) => Ok(typ.clone()),
-        Some(token) => Err(format!("Expected type, found {:?}", token).into()),
-        None => Err("Expected type, found EOF".into()),
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Statement {
+    Return(Option<Expression>),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Expression {
+    IntLit(u64),
+    FunctionCall { name: String },
+}
+
+pub struct Parser<'a> {
+    token_stream: TokenStream<'a>,
+}
+
+impl<'a> Parser<'a> {
+    pub fn new(tokens: &'a [Token]) -> Self {
+        Parser { token_stream: TokenStream::new(tokens) }
     }
-}
 
-fn parse_compound_statement(tokens: &mut TokenStream) -> Result<Vec<Statement>, Box<dyn Error>> {
-    let mut statements = Vec::new();
-    loop {
-        match tokens.peek() {
-            Some(Token::RBrace) => break,
-            Some(Token::Return) => statements.push(parse_statement(tokens)?),
-            _ => return Err("Not implemented".into()),
+    pub fn parse(&mut self) -> Result<Program> {
+        let mut functions = Vec::new();
+        loop {
+            match self.token_stream.peek() {
+                Some(_) => functions.push(self.parse_function()?),
+                None => break,
+            }
+        }
+        Ok(Program { functions })
+    }
+
+    fn parse_function(&mut self) -> Result<Function> {
+        let return_type = self.parse_type()?;
+        let name = self.token_stream.expect_identifier()?;
+        // TODO: Here we should check for both declarations and definitions.
+        self.token_stream.expect(Token::LParen)?;
+        self.token_stream.expect(Token::RParen)?;
+        self.token_stream.expect(Token::LBrace)?;
+        let body = self.parse_compound_statement()?;
+        self.token_stream.expect(Token::RBrace)?;
+        Ok(Function { return_type, name, body })
+    }
+
+    fn parse_type(&mut self) -> Result<Type> {
+        match self.token_stream.next() {
+            Some(Token::Type(typ)) => Ok(typ.clone()),
+            Some(token) => Err(anyhow!("Expected type, found {:?}", token)),
+            None => Err(anyhow!("Expected type, found EOF")),
         }
     }
-    Ok(statements)
-}
 
-fn parse_statement(tokens: &mut TokenStream) -> Result<Statement, Box<dyn Error>> {
-    match tokens.peek() {
-        Some(&Token::Return) => parse_return_statement(tokens),
-        _ => Err("Expected return statement".into()),
+    fn parse_compound_statement(&mut self) -> Result<Vec<Statement>> {
+        let mut statements = Vec::new();
+        loop {
+            statements.push(match self.token_stream.peek() {
+                Some(&Token::RBrace) => break,
+                Some(&Token::Return) => self.parse_return_statement()?,
+                _ => return Err(anyhow!("Not implemented yet")),
+            })
+        }
+        Ok(statements)
+    }
+
+    fn parse_return_statement(&mut self) -> Result<Statement> {
+        self.token_stream.expect(Token::Return)?;
+        let expression = self.parse_expression()?;
+        self.token_stream.expect(Token::Semi)?;
+        match expression {
+            Some(expression) => Ok(Statement::Return(Some(expression))),
+            None => Ok(Statement::Return(None)),
+        }
+    }
+
+    fn parse_expression(&mut self) -> Result<Option<Expression>> {
+        match self.token_stream.peek() {
+            Some(&Token::IntLit(n)) => {
+                self.token_stream.next();
+                Ok(Some(Expression::IntLit(n)))
+            }
+            Some(&Token::Identifier(ref name)) => {
+                let name = name.clone();
+                self.token_stream.next();
+                self.token_stream.expect(Token::LParen)?;
+                self.token_stream.expect(Token::RParen)?;
+                Ok(Some(Expression::FunctionCall { name }))
+            }
+            Some(&Token::Semi) => Ok(None),
+            Some(token) => Err(anyhow!("Expected expression, found {:?}", token)),
+            None => Err(anyhow!("Expected expression, found EOF")),
+        }
     }
 }
 
-fn parse_return_statement(tokens: &mut TokenStream) -> Result<Statement, Box<dyn Error>> {
-    tokens.expect(Token::Return)?;
-    let expression = parse_expression(tokens)?;
-    if expression.is_some() {
-        tokens.expect(Token::Semi)?;
-    }
-    match expression {
-        Some(expression) => Ok(Statement::Return(Some(expression))),
-        None => Ok(Statement::Return(None)),
-    }
+pub struct TokenStream<'a> {
+    tokens: Peekable<Iter<'a, Token>>,
 }
 
-fn parse_expression(tokens: &mut TokenStream) -> Result<Option<Expression>, Box<dyn Error>> {
-    match tokens.next() {
-        Some(Token::IntLit(n)) => Ok(Some(Expression::IntLit(*n))),
-        Some(Token::Semi) => Ok(None),
-        Some(token) => Err(format!("Expected expression, found {:?}", token).into()),
-        None => Err("Expected expression, found EOF".into()),
+impl<'a> TokenStream<'a> {
+    pub fn new(tokens: &'a [Token]) -> Self {
+        TokenStream { tokens: tokens.iter().peekable() }
+    }
+
+    pub fn peek(&mut self) -> Option<&Token> {
+        self.tokens.peek().copied()
+    }
+
+    pub fn next(&mut self) -> Option<&Token> {
+        self.tokens.next()
+    }
+
+    pub fn expect(&mut self, expected: Token) -> Result<()> {
+        match self.next() {
+            Some(token) if *token == expected => Ok(()),
+            Some(token) => Err(anyhow!("Expected {:?}, found {:?}", expected, token)),
+            None => Err(anyhow!("Expected {:?}, found EOF", expected)),
+        }
+    }
+
+    pub fn expect_identifier(&mut self) -> Result<String> {
+        match self.next() {
+            Some(Token::Identifier(name)) => Ok(name.clone()),
+            Some(token) => Err(anyhow!("Expected identifier, found {:?}", token)),
+            None => Err(anyhow!("Expected identifier, found EOF")),
+        }
     }
 }

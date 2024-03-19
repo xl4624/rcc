@@ -1,77 +1,57 @@
-use std::{collections::HashMap, error::Error};
+use std::collections::HashMap;
+
+use anyhow::{anyhow, Result};
 
 use crate::{
-    ast::{Expression, Function, Program, Statement},
-    token::Type,
+    lexer::Type,
+    parser::{Expression, Function, Program, Statement},
 };
 
-struct SymbolTable {
-    table: HashMap<String, Type>,
+pub struct Analyzer {
+    symbol_table: HashMap<String, Type>,
 }
 
-#[allow(dead_code)]
-impl SymbolTable {
+#[allow(unreachable_code)]
+impl Analyzer {
     pub fn new() -> Self {
-        SymbolTable { table: HashMap::new() }
+        Analyzer { symbol_table: HashMap::new() }
     }
 
-    pub fn insert(&mut self, name: String, typ: Type) {
-        self.table.insert(name, typ);
+    pub fn analyze(&mut self, program: Program) -> Result<()> {
+        for function in &program.functions {
+            self.analyze_function(function)?;
+        }
+        Ok(())
     }
 
-    pub fn remove(&mut self, name: &str) {
-        self.table.remove(name);
+    fn analyze_function(&mut self, function: &Function) -> Result<()> {
+        self.symbol_table.insert(function.name.clone(), function.return_type.clone());
+        for statement in &function.body {
+            self.analyze_statement(statement, &function.return_type)?;
+        }
+        Ok(())
     }
 
-    pub fn get(&self, name: &str) -> Option<&Type> {
-        self.table.get(name)
-    }
-}
-
-pub fn analyze(program: Program) -> Result<(), Box<dyn Error>> {
-    let mut symbol_table = SymbolTable::new();
-    analyze_function(&program.function, &mut symbol_table)?;
-    Ok(())
-}
-
-fn analyze_function(
-    function: &Function,
-    symbol_table: &mut SymbolTable,
-) -> Result<(), Box<dyn Error>> {
-    symbol_table.insert(function.name.clone(), function.return_type.clone());
-    for statement in &function.body {
-        analyze_statement(statement, symbol_table, &function.return_type)?;
-    }
-    Ok(())
-}
-
-fn analyze_statement(
-    statement: &Statement,
-    symbol_table: &mut SymbolTable,
-    expected_return_type: &Type,
-) -> Result<(), Box<dyn Error>> {
-    match statement {
-        Statement::Return(expression) => {
-            let expression_type = analyze_expression(expression, symbol_table)?;
-            if &expression_type != expected_return_type {
-                return Err(format!(
-                    "Expected return type {:?}, found {:?}",
-                    expected_return_type, expression_type
-                )
-                .into());
+    fn analyze_statement(&mut self, statement: &Statement, return_type: &Type) -> Result<()> {
+        match statement {
+            Statement::Return(expression) => {
+                let expression_type = self.analyze_expression(expression)?;
+                if &expression_type != return_type {
+                    return Err(anyhow!("Expected {:?}, found {:?}", return_type, expression_type));
+                }
             }
         }
+        Ok(())
     }
-    Ok(())
-}
 
-fn analyze_expression(
-    expression: &Option<Expression>,
-    _symbol_table: &mut SymbolTable,
-) -> Result<Type, Box<dyn Error>> {
-    match expression {
-        Some(Expression::IntLit(_)) => Ok(Type::Int),
-        None => Ok(Type::Void),
-        _ => Err("Unsupported expression".into()),
+    fn analyze_expression(&mut self, expression: &Option<Expression>) -> Result<Type> {
+        match expression {
+            Some(Expression::IntLit(_)) => Ok(Type::Int),
+            Some(Expression::FunctionCall { name }) => match self.symbol_table.get(name) {
+                Some(typ) => Ok(typ.clone()),
+                None => Err(anyhow!("Undefined function {}", name)),
+            },
+            None => Ok(Type::Void),
+        }
     }
 }
