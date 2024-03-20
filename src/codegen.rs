@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 use crate::parser::{Expression, Function, Program, Statement};
 
@@ -31,15 +31,30 @@ impl<'a> CodeGenerator<'a> {
 
     fn generate_statement(&mut self, statement: &Statement) -> Result<()> {
         match statement {
-            Statement::Return(expression) => match expression {
-                Some(Expression::IntLit(value)) => {
-                    writeln!(self.writer, "mov w0, #{}", value)?;
-                    writeln!(self.writer, "ret")?;
+            Statement::Return(expression) => {
+                if let Some(expr) = expression {
+                    self.generate_expression(expr)?;
                 }
-                None => writeln!(self.writer, "ret")?,
-                _ => return Err(anyhow!("Unsupported return expression")),
-            },
-            _ => return Err(anyhow!("Unsupported statement type")),
+                writeln!(self.writer, "    ret")?;
+            }
+        }
+        Ok(())
+    }
+
+    fn generate_expression(&mut self, expression: &Expression) -> Result<()> {
+        match expression {
+            Expression::IntLit(n) => {
+                writeln!(self.writer, "    mov w0, #{}", n)?;
+            }
+            Expression::FunctionCall { name } => {
+                // Allocate space on the stack and save on x29 and x30
+                writeln!(self.writer, "    stp x29, x30, [sp, #16]!")?;
+                // Set the frame pointer to the current stack pointer
+                writeln!(self.writer, "    mov x29, sp")?;
+                writeln!(self.writer, "    bl _{}", name)?;
+                // Restore the frame pointer and the link register
+                writeln!(self.writer, "    ldp x29, x30, [sp], #16")?;
+            }
         }
         Ok(())
     }

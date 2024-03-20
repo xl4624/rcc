@@ -24,7 +24,7 @@ pub enum Statement {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Expression {
-    IntLit(u64),
+    IntLit(u32),
     FunctionCall { name: String },
 }
 

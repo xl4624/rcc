@@ -24,12 +24,12 @@ impl Analyzer {
     }
 
     fn analyze_function(&mut self, function: &Function) -> Result<()> {
-        self.symbol_table.enter_scope();
         let info = SymbolInfo {
             symbol_type: SymbolType::Function { parameters: Vec::new() },
             data_type: function.return_type.clone(),
         };
         self.symbol_table.insert(function.name.clone(), info);
+        self.symbol_table.enter_scope();
         for statement in &function.body {
             self.analyze_statement(statement, &function.return_type)?;
         }
@@ -61,6 +61,7 @@ impl Analyzer {
     }
 }
 
+#[derive(Debug)]
 struct SymbolTable {
     stack: Vec<HashMap<String, SymbolInfo>>,
 }
@@ -95,12 +96,14 @@ impl SymbolTable {
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 struct SymbolInfo {
     symbol_type: SymbolType,
     data_type: Type,
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 enum SymbolType {
     Function { parameters: Vec<Type> },
     Variable,

@@ -7,7 +7,7 @@ use std::{
     env::args,
     fs::{read_to_string, File},
     path::Path,
-    process::{self, exit},
+    process::{self},
 };
 
 use serde_json::to_string_pretty;
@@ -16,7 +16,7 @@ use crate::{
     analyzer::Analyzer,
     codegen::CodeGenerator,
     lexer::{lex, Token},
-    parser::{Parser, Program},
+    parser::Parser,
 };
 
 fn main() -> anyhow::Result<()> {

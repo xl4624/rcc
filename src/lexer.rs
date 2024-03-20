@@ -22,7 +22,7 @@ pub enum Token {
     // Operators
 
     // Literals
-    IntLit(u64),
+    IntLit(u32),
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -61,7 +61,7 @@ fn lex_identifier_or_keyword(
     let mut word = c.to_string();
 
     while let Some(&next_c) = chars.peek() {
-        if !(next_c.is_ascii_alphabetic() || next_c == '_') {
+        if !(next_c.is_ascii_alphanumeric() || next_c == '_') {
             break;
         }
         // unwrap() is safe here because we know next_c is Some
