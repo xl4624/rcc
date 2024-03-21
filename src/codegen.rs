@@ -48,12 +48,12 @@ impl<'a> CodeGenerator<'a> {
             }
             Expression::FunctionCall { name } => {
                 // Allocate space on the stack and save on x29 and x30
-                writeln!(self.writer, "    stp x29, x30, [sp, #16]!")?;
+                writeln!(self.writer, "    stp x29, x30, [sp, -16]!")?;
                 // Set the frame pointer to the current stack pointer
                 writeln!(self.writer, "    mov x29, sp")?;
                 writeln!(self.writer, "    bl _{}", name)?;
                 // Restore the frame pointer and the link register
-                writeln!(self.writer, "    ldp x29, x30, [sp], #16")?;
+                writeln!(self.writer, "    ldp x29, x30, [sp], 16")?;
             }
         }
         Ok(())
