@@ -44,7 +44,7 @@ impl<'a> CodeGenerator<'a> {
     fn generate_expression(&mut self, expression: &Expression) -> Result<()> {
         match expression {
             Expression::IntLit(n) => {
-                writeln!(self.writer, "    mov w0, #{}", n)?;
+                writeln!(self.writer, "    mov w0, {}", n)?;
             }
             Expression::FunctionCall { name } => {
                 // Allocate space on the stack and save on x29 and x30

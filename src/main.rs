@@ -10,23 +10,20 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
+use lexer::Lexer;
 use serde_json::to_string_pretty;
 
-use crate::{
-    analyzer::Analyzer,
-    codegen::CodeGenerator,
-    lexer::{lex, Token},
-};
+use crate::{analyzer::Analyzer, codegen::CodeGenerator};
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 #[clap(name = "rcc")]
 #[clap(version, about, long_about = None)]
 struct Args {
-    #[arg(short, long, help = "Print the output of each stage of the compiler")]
-    print_output: bool,
-
     #[arg(value_name = "FILE.c", value_parser = is_c_file, help = "The input file")]
     input_path: PathBuf,
+
+    #[arg(short, long, help = "Print the output of each stage of the compiler")]
+    print_output: bool,
 }
 
 fn is_c_file(s: &str) -> Result<PathBuf> {
@@ -40,9 +37,10 @@ fn is_c_file(s: &str) -> Result<PathBuf> {
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-
     let contents = read_to_string(&args.input_path)?;
-    let tokens: Vec<Token> = lex(&contents)?;
+    let filename = args.input_path.to_string_lossy().to_string();
+
+    let tokens = Lexer::new(filename, &contents).lex()?;
     let ast = parser::Parser::new(&tokens).parse()?;
     // Propagates semantic errors like undefined functions, unexpected return types, etc.
     Analyzer::new().analyze(&ast)?;
@@ -52,7 +50,7 @@ fn main() -> anyhow::Result<()> {
     CodeGenerator::new(&mut output_file).generate(&ast)?;
 
     if args.print_output {
-        tokens.iter().for_each(|t| println!("{:?}", t));
+        tokens.iter().for_each(|t| println!("{}", t));
         println!();
         println!("Program: {}", to_string_pretty(&ast)?);
         println!();
