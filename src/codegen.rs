@@ -55,6 +55,7 @@ impl<'a> CodeGenerator<'a> {
                 // Restore the frame pointer and the link register
                 writeln!(self.writer, "    ldp x29, x30, [sp], 16")?;
             }
+            _ => todo!(),
         }
         Ok(())
     }

@@ -19,20 +19,13 @@ use crate::{analyzer::Analyzer, codegen::CodeGenerator};
 #[clap(name = "rcc")]
 #[clap(version, about, long_about = None)]
 struct Args {
-    #[arg(value_name = "FILE.c", value_parser = is_c_file, help = "The input file")]
+    /// The input file
+    #[arg(value_name = "FILE.c", value_parser = is_c_file)]
     input_path: PathBuf,
 
-    #[arg(short, long, help = "Print the output of each stage of the compiler")]
+    /// Print the output of each stage of the compiler
+    #[arg(short, long)]
     print_output: bool,
-}
-
-fn is_c_file(s: &str) -> Result<PathBuf> {
-    let path = PathBuf::from(s);
-    if path.extension().unwrap_or_default() == "c" {
-        Ok(path)
-    } else {
-        Err(anyhow!("Input file must have a .c extension"))
-    }
 }
 
 fn main() -> anyhow::Result<()> {
@@ -58,4 +51,13 @@ fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn is_c_file(s: &str) -> Result<PathBuf> {
+    let path = PathBuf::from(s);
+    if path.extension().unwrap_or_default() == "c" {
+        Ok(path)
+    } else {
+        Err(anyhow!("Input file must have a .c extension"))
+    }
 }

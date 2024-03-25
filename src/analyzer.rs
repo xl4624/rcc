@@ -49,6 +49,7 @@ impl Analyzer {
         Ok(())
     }
 
+    #[allow(unreachable_patterns)]
     fn analyze_expression(&mut self, expression: &Option<Expression>) -> Result<Type> {
         match expression {
             Some(Expression::IntLit(_)) => Ok(Type::Int),
@@ -56,7 +57,18 @@ impl Analyzer {
                 Some(symbol_info) => Ok(symbol_info.data_type.clone()),
                 None => Err(anyhow!("Undefined function {}", name)),
             },
+            Some(Expression::Binary { left, op: _, right }) => {
+                let left_expression = Some((**left).clone());
+                let right_expression = Some((**right).clone());
+                let left_type = self.analyze_expression(&left_expression)?;
+                let right_type = self.analyze_expression(&right_expression)?;
+                if left_type != right_type {
+                    return Err(anyhow!("Type mismatch: {:?} and {:?}", left_type, right_type));
+                }
+                Ok(left_type)
+            }
             None => Ok(Type::Void),
+            _ => todo!(),
         }
     }
 }

@@ -3,6 +3,8 @@ use std::{collections::HashMap, fmt, iter::Peekable, str::Chars};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::lexer::{Keyword::*, Operator::*, Separator::*, Type::*};
+
 pub struct Lexer<'a> {
     chars: Peekable<Chars<'a>>,
     pos: Position,
@@ -19,28 +21,41 @@ pub struct Token {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
     Identifier(String),
-
-    // Keyword
-    Return,
+    Keyword(Keyword),
     Type(Type),
-
-    // Separators/Punctuators
-    LParen,
-    RParen,
-    LBrace,
-    RBrace,
-    Semi,
-
-    // Operators
+    Separator(Separator),
+    Operator(Operator),
 
     // Literals
     IntLit(u32),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Keyword {
+    Return,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum Type {
     Int,
     Void,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Separator {
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    Semi,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum Operator {
+    Plus,
+    Minus,
+    Star,
+    Slash,
 }
 
 #[derive(Debug, Clone)]
@@ -64,11 +79,15 @@ impl<'a> Lexer<'a> {
         while let Some(c) = self.chars.next() {
             let start_pos = self.pos.clone();
             let token_kind = match c {
-                '(' => TokenKind::LParen,
-                ')' => TokenKind::RParen,
-                '{' => TokenKind::LBrace,
-                '}' => TokenKind::RBrace,
-                ';' => TokenKind::Semi,
+                '(' => TokenKind::Separator(LParen),
+                ')' => TokenKind::Separator(RParen),
+                '{' => TokenKind::Separator(LBrace),
+                '}' => TokenKind::Separator(RBrace),
+                ';' => TokenKind::Separator(Semi),
+                '+' => TokenKind::Operator(Plus),
+                '-' => TokenKind::Operator(Minus),
+                '*' => TokenKind::Operator(Star),
+                '/' => TokenKind::Operator(Slash),
                 _ if c.is_whitespace() => {
                     self.pos.advance(c);
                     continue;
@@ -126,15 +145,32 @@ impl fmt::Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             TokenKind::Identifier(name) => write!(f, "identifier '{}'", name),
-            TokenKind::Return => write!(f, "return 'return'"),
-            TokenKind::Type(Type::Int) => write!(f, "int 'int'"),
-            TokenKind::Type(Type::Void) => write!(f, "void 'void'"),
-            TokenKind::LParen => write!(f, "l_paren '('"),
-            TokenKind::RParen => write!(f, "r_paren ')'"),
-            TokenKind::LBrace => write!(f, "l_brace '{{'"),
-            TokenKind::RBrace => write!(f, "r_brace '}}'"),
-            TokenKind::Semi => write!(f, "semi ';'"),
+            TokenKind::Keyword(Return) => write!(f, "return 'return'"),
+            TokenKind::Type(Int) => write!(f, "int 'int'"),
+            TokenKind::Type(Void) => write!(f, "void 'void'"),
+            TokenKind::Separator(LParen) => write!(f, "left parenthesis '('"),
+            TokenKind::Separator(RParen) => write!(f, "right parenthesis ')'"),
+            TokenKind::Separator(LBrace) => write!(f, "left brace '{{'"),
+            TokenKind::Separator(RBrace) => write!(f, "right brace '}}'"),
+            TokenKind::Separator(Semi) => write!(f, "semicolon ';'"),
+            TokenKind::Operator(Plus) => write!(f, "plus '+'"),
+            TokenKind::Operator(Minus) => write!(f, "minus '-'"),
+            TokenKind::Operator(Star) => write!(f, "star '*'"),
+            TokenKind::Operator(Slash) => write!(f, "slash '/'"),
             TokenKind::IntLit(value) => write!(f, "numeric_constant '{}'", value),
+        }
+    }
+}
+
+pub trait Precedence {
+    fn precedence(&self) -> u8;
+}
+
+impl Precedence for Operator {
+    fn precedence(&self) -> u8 {
+        match self {
+            Plus | Minus => 1,
+            Star | Slash => 2,
         }
     }
 }
@@ -169,9 +205,9 @@ impl fmt::Display for Position {
 fn keyword_token_map() -> HashMap<String, TokenKind> {
     let mut keywords = HashMap::new();
 
-    keywords.insert("return".to_string(), TokenKind::Return);
-    keywords.insert("int".to_string(), TokenKind::Type(Type::Int));
-    keywords.insert("void".to_string(), TokenKind::Type(Type::Void));
+    keywords.insert("return".to_string(), TokenKind::Keyword(Return));
+    keywords.insert("int".to_string(), TokenKind::Type(Int));
+    keywords.insert("void".to_string(), TokenKind::Type(Void));
 
     keywords
 }
